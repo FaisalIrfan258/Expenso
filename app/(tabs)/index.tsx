@@ -1,98 +1,216 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import { router } from 'expo-router';
+import { useEffect, useMemo, useState } from 'react';
+import { StyleSheet, View } from 'react-native';
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+import { AppScreen } from '@/components/AppScreen';
+import { AppText } from '@/components/AppText';
+import { Card } from '@/components/Card';
+import { PieChart } from '@/components/PieChart';
+import { PrimaryButton } from '@/components/PrimaryButton';
+import { ProgressBar } from '@/components/ProgressBar';
+import { usePalette } from '@/hooks/use-palette';
+import { useBudget } from '@/state/BudgetContext';
+import {
+  getCategoryTotals,
+  getFixedTotal,
+  getRemainingBudget,
+  getRemainingSpendLimit,
+  getSavingsEstimate,
+  getTotalSpent,
+  getVariableSpent,
+  getWarnings,
+} from '@/utils/budget';
+import { generateAiWarnings, isMistralEnabled } from '@/utils/mistral';
+import { formatEuro } from '@/utils/money';
 
-export default function HomeScreen() {
+export default function DashboardScreen() {
+  const budget = useBudget();
+  const palette = usePalette();
+  const spent = getTotalSpent(budget);
+  const flexibleSpent = getVariableSpent(budget.expenses);
+  const remaining = getRemainingBudget(budget);
+  const remainingSpendLimit = getRemainingSpendLimit(budget);
+  const fixedTotal = getFixedTotal(budget.fixedCosts);
+  const savings = getSavingsEstimate(budget);
+  const categories = getCategoryTotals(budget);
+  const localWarnings = useMemo(() => getWarnings(budget), [budget]);
+  const [warnings, setWarnings] = useState(localWarnings);
+  const progress = budget.monthlySpendLimit > 0 ? flexibleSpent / budget.monthlySpendLimit : 0;
+
+  useEffect(() => {
+    let isActive = true;
+
+    setWarnings(localWarnings);
+
+    if (isMistralEnabled && localWarnings.length) {
+      generateAiWarnings(budget, localWarnings).then((aiWarnings) => {
+        if (isActive) {
+          setWarnings(aiWarnings);
+        }
+      });
+    }
+
+    return () => {
+      isActive = false;
+    };
+  }, [budget, localWarnings]);
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+    <AppScreen>
+      <View style={styles.header}>
+        <View>
+          <AppText variant="eyebrow">This month</AppText>
+          <AppText variant="title">Expenso</AppText>
+        </View>
+        <PrimaryButton tone="soft" onPress={() => router.push('/setup' as never)}>
+          Edit
+        </PrimaryButton>
+      </View>
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+      <Card style={[styles.heroCard, { backgroundColor: palette.primary }]}>
+        <AppText variant="eyebrow" style={{ color: palette.primarySoft }}>
+          Left to spend
+        </AppText>
+        <AppText variant="metric" style={{ color: palette.surface }}>
+          {formatEuro(remainingSpendLimit)}
+        </AppText>
+        <ProgressBar progress={progress} color={palette.accent} height={12} />
+        <View style={styles.heroStats}>
+          <Stat label="Spend cap" value={formatEuro(budget.monthlySpendLimit)} inverse />
+          <Stat label="Spent" value={formatEuro(flexibleSpent)} inverse />
+        </View>
+      </Card>
+
+      {warnings.length ? (
+        <Card style={{ borderColor: palette.danger }}>
+          <AppText variant="heading" style={{ color: palette.danger }}>
+            {isMistralEnabled ? 'AI budget warnings' : 'Budget warnings'}
+          </AppText>
+          {warnings.slice(0, 3).map((warning) => (
+            <AppText key={warning}>- {warning}</AppText>
+          ))}
+        </Card>
+      ) : null}
+
+      <View style={styles.grid}>
+        <Card style={styles.gridCard}>
+          <Stat label="Fixed costs" value={formatEuro(fixedTotal)} />
+        </Card>
+        <Card style={styles.gridCard}>
+          <Stat label="Savings estimate" value={formatEuro(savings)} />
+        </Card>
+      </View>
+
+      <Card>
+        <View style={styles.categoryRow}>
+          <AppText variant="muted">Total monthly budget</AppText>
+          <AppText style={styles.categoryText}>{formatEuro(budget.monthlyBudget)}</AppText>
+        </View>
+        <View style={styles.categoryRow}>
+          <AppText variant="muted">Total used including fixed costs</AppText>
+          <AppText style={styles.categoryText}>{formatEuro(spent)}</AppText>
+        </View>
+        <View style={styles.categoryRow}>
+          <AppText variant="muted">Budget after all spending</AppText>
+          <AppText style={styles.categoryText}>{formatEuro(remaining)}</AppText>
+        </View>
+      </Card>
+
+      <Card>
+        <View style={styles.sectionHeader}>
+          <View>
+            <AppText variant="heading">Where it goes</AppText>
+            <AppText variant="muted">Category-wise spending</AppText>
+          </View>
+        </View>
+        {categories.length ? (
+          <>
+            <PieChart slices={categories} total={categories.reduce((sum, item) => sum + item.amount, 0)} />
+            {categories.slice(0, 5).map((category) => (
+              <View key={category.id} style={styles.categoryRow}>
+                <View style={styles.categoryLabel}>
+                  <View style={[styles.dot, { backgroundColor: category.color }]} />
+                  <AppText style={styles.categoryText}>{category.label}</AppText>
+                </View>
+                <View style={styles.categoryAmount}>
+                  <AppText style={styles.categoryText}>{formatEuro(category.amount)}</AppText>
+                  {category.budget > 0 ? (
+                    <AppText variant="muted">{Math.round((category.amount / category.budget) * 100)}%</AppText>
+                  ) : null}
+                </View>
+              </View>
+            ))}
+          </>
+        ) : (
+          <AppText variant="muted">Add an expense to unlock your category breakdown.</AppText>
+        )}
+      </Card>
+    </AppScreen>
+  );
+}
+
+function Stat({ label, value, inverse }: { label: string; value: string; inverse?: boolean }) {
+  const palette = usePalette();
+
+  return (
+    <View style={styles.stat}>
+      <AppText variant="muted" style={inverse ? { color: palette.primarySoft } : undefined}>
+        {label}
+      </AppText>
+      <AppText variant="heading" style={inverse ? { color: palette.surface } : undefined}>
+        {value}
+      </AppText>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
+  categoryAmount: {
+    alignItems: 'flex-end',
+  },
+  categoryLabel: {
     alignItems: 'center',
-    gap: 8,
+    flexDirection: 'row',
+    gap: 10,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  categoryRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  categoryText: {
+    fontWeight: '800',
+  },
+  dot: {
+    borderRadius: 6,
+    height: 12,
+    width: 12,
+  },
+  grid: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  gridCard: {
+    flex: 1,
+  },
+  header: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingTop: 8,
+  },
+  heroCard: {
+    gap: 18,
+  },
+  heroStats: {
+    flexDirection: 'row',
+    gap: 24,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  stat: {
+    gap: 4,
   },
 });
