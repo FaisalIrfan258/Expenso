@@ -8,12 +8,15 @@ export function CategoryPill({
   category,
   selected,
   onPress,
+  selectedTextColor,
 }: {
   category: Category;
   selected: boolean;
   onPress: () => void;
+  selectedTextColor?: string;
 }) {
   const palette = usePalette();
+  const textColor = selected ? (selectedTextColor ?? '#FFFFFF') : palette.text;
 
   return (
     <Pressable
@@ -26,7 +29,7 @@ export function CategoryPill({
         },
       ]}>
       <View style={[styles.dot, { backgroundColor: selected ? palette.surface : category.color }]} />
-      <AppText style={{ color: selected ? '#FFFFFF' : palette.text, fontWeight: '800' }}>
+      <AppText style={{ color: textColor, fontWeight: '800' }}>
         {category.label}
       </AppText>
     </Pressable>

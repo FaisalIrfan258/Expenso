@@ -1,6 +1,8 @@
 import { Tabs } from 'expo-router';
 import React from 'react';
 import { Ionicons } from '@expo/vector-icons';
+import { Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HapticTab } from '@/components/haptic-tab';
 import { darkPalette, lightPalette } from '@/constants/design';
@@ -9,6 +11,12 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   const palette = colorScheme === 'dark' ? darkPalette : lightPalette;
+  const insets = useSafeAreaInsets();
+  const bottomOffset = Platform.select({
+    android: Math.max(insets.bottom, 10),
+    ios: Math.max(insets.bottom - 8, 12),
+    default: 12,
+  });
 
   return (
     <Tabs
@@ -20,10 +28,10 @@ export default function TabLayout() {
           borderColor: palette.border,
           borderRadius: 28,
           borderTopWidth: 1,
-          bottom: 18,
+          bottom: bottomOffset,
           height: 72,
           left: 18,
-          paddingBottom: 12,
+          paddingBottom: 10,
           paddingTop: 10,
           position: 'absolute',
           right: 18,

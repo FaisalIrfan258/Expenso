@@ -8,15 +8,22 @@ import { Card } from '@/components/Card';
 import { CategoryPill } from '@/components/CategoryPill';
 import { ExpenseCard } from '@/components/ExpenseCard';
 import { PrimaryButton } from '@/components/PrimaryButton';
+import { getFixedTotal } from '@/utils/budget';
 import { categories, CategoryId, getCategory } from '@/data/categories';
 import { usePalette } from '@/hooks/use-palette';
 import { useBudget } from '@/state/BudgetContext';
 
 export default function HistoryScreen() {
   const palette = usePalette();
-  const { expenses, deleteExpense, resetDemoData } = useBudget();
+  const budget = useBudget();
+  const { clearExpenses, expenses, deleteExpense, resetDemoData } = budget;
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<CategoryId | 'all'>('all');
+  const canStartOver =
+    expenses.length > 0 ||
+    budget.monthlyBudget > 0 ||
+    budget.monthlySpendLimit > 0 ||
+    getFixedTotal(budget.fixedCosts) > 0;
 
   const filtered = useMemo(() => {
     const normalized = query.toLowerCase();
@@ -55,6 +62,21 @@ export default function HistoryScreen() {
     );
   };
 
+  const confirmClearExpenses = () => {
+    Alert.alert(
+      'Clear expenses?',
+      'This removes all expense history but keeps your monthly budget and fixed costs.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Clear expenses',
+          style: 'destructive',
+          onPress: clearExpenses,
+        },
+      ],
+    );
+  };
+
   return (
     <AppScreen>
       <View style={styles.header}>
@@ -62,11 +84,6 @@ export default function HistoryScreen() {
           <AppText variant="eyebrow">History</AppText>
           <AppText variant="title">Every euro, searchable.</AppText>
         </View>
-        {expenses.length ? (
-          <PrimaryButton tone="soft" onPress={confirmStartOver}>
-            Start over
-          </PrimaryButton>
-        ) : null}
       </View>
 
       <Card>
@@ -79,8 +96,9 @@ export default function HistoryScreen() {
         />
         <View style={styles.pills}>
           <CategoryPill
-            category={{ id: 'other', label: 'All', emoji: 'A', color: palette.primary, keywords: [] }}
+            category={{ id: 'other', label: 'All', emoji: 'A', color: palette.accent, keywords: [] }}
             selected={filter === 'all'}
+            selectedTextColor="#FFFFFF"
             onPress={() => setFilter('all')}
           />
           {categories.map((category) => (
@@ -93,6 +111,25 @@ export default function HistoryScreen() {
           ))}
         </View>
       </Card>
+
+      {canStartOver ? (
+        <Card>
+          <AppText variant="heading">Reset options</AppText>
+          <AppText variant="muted">
+            Clear only expenses to keep your budget, or start over to enter a new monthly plan.
+          </AppText>
+          <View style={styles.actions}>
+            {expenses.length ? (
+              <PrimaryButton tone="soft" onPress={confirmClearExpenses}>
+                Clear expenses
+              </PrimaryButton>
+            ) : null}
+            <PrimaryButton tone="soft" onPress={confirmStartOver}>
+              Start over
+            </PrimaryButton>
+          </View>
+        </Card>
+      ) : null}
 
       {Object.entries(grouped).length ? (
         Object.entries(grouped).map(([label, items]) => (
@@ -117,6 +154,9 @@ export default function HistoryScreen() {
 
 const styles = StyleSheet.create({
   group: {
+    gap: 10,
+  },
+  actions: {
     gap: 10,
   },
   header: {

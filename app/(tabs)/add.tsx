@@ -155,6 +155,7 @@ export default function AddExpenseScreen() {
                 keywords: [],
               }}
               selected={!manualCategory}
+              selectedTextColor={palette.surface}
               onPress={() => {
                 setManualCategory(false);
                 setCategory(detectCategory(title));
